@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+set -e
+
+main() {
+  git add .
+  git commit -m 'temp'
+  git checkout --orphan eva-1
+  git add .
+  git commit -m 'first commit'
+  local rev=`git rev-parse HEAD`
+  git checkout master
+  git reset --hard $rev
+}
+
+main
