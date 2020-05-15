@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -e
+
+main() {
+  local uname="sartrey"
+  local email="sartrey@163.com"
+
+  if [ -n "$1" ]; then
+    uname="$1"
+  fi
+  if [ -n "$2" ]; then
+    email="$2"
+  fi
+
+  git config --local core.ignorecase false
+
+  git config --local user.name $uname
+  git config --local user.email $email
+  git commit --amend --reset-author --no-edit
+}
+
+main $1 $2
+
