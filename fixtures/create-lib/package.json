@@ -1,0 +1,32 @@
+{
+  "name": "${node}",
+  "version": "0.1.0",
+  "description": "",
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "eslint . && nyc --reporter=lcov mocha test/index.js --exit",
+    "lcov": "nyc report --reporter=text-lcov | coveralls"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/${repo}.git"
+  },
+  "keywords": [],
+  "author": "${user}",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/${repo}/issues"
+  },
+  "homepage": "https://github.com/${repo}#readme",
+  "devDependencies": {
+    "coveralls": "^3.1.0",
+    "eslint": "^7.0.0",
+    "eslint-config-airbnb-base": "^14.1.0",
+    "mocha": "^7.1.2",
+    "nyc": "^15.0.1"
+  }
+}

@@ -1,0 +1,108 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const childProcess = require('child_process');
+const path = require('path');
+const util = require('util');
+
+const rootdir = path.join(__dirname, '../fixtures/create-lib');
+const workdir = process.cwd();
+const makeDir = (p) => {
+  return new Promise((resolve, reject) => {
+    fs.access(p, (error1) => {
+      if (!error1) return resolve();
+      fs.mkdir(p, { recursive: true }, (error2) => {
+        if (!error2) return resolve();
+        console.log(error2);
+        return reject(error2);
+      });
+    });
+  });
+}
+const readFile = util.promisify(fs.readFile);
+const writeFile = util.promisify(fs.writeFile);
+
+async function copyFile(name, file, fill) {
+  const sourceFile = path.join(rootdir, file);
+  const targetFile = path.join(workdir, name, file);
+  let content = await readFile(sourceFile, 'utf8');
+  if (fill) {
+    Object.keys(fill).forEach(key => {
+      const regexp = new RegExp(`\\$\\{${key}\\}`, 'g');
+      content = content.replace(regexp, fill[key]);
+    });
+  }
+  await writeFile(targetFile, content);
+}
+
+async function tryShell(name, command, args) {
+  return new Promise((resolve, reject) => {
+    console.log(`\n${command} ${args.join(' ')}`);
+    const proc = childProcess.spawn(command, args, { cwd: path.join(workdir, name), stdio: 'inherit' });
+    proc.on('exit', (code) => {
+      if (code) {
+        console.log(`\n${command} error code => ${code}\n`);
+        reject(new Error('command error'));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+function parseOptions(args, keys) {
+  const options = {};
+  const regexps = keys.map(key => new RegExp(`^--${key}=?`));
+  args.forEach(arg => {
+    const index = regexps.findIndex(e => e.test(arg));
+    if (index >= 0) {
+      const value = arg.replace(regexps[index], '');
+      options[keys[index]] = value || 'true';
+    }
+  });
+  return options;
+}
+
+function showHelp() {
+  console.log('create-lib');
+  console.log(' --repo = github project repo name, like "team/name"');
+  console.log(' --node = node package name [optional]');
+  console.log(' --user = license & package author');
+}
+
+async function main() {
+  const options = parseOptions(process.argv, ['repo', 'node', 'user']);
+  const { repo, node, user, mail } = options;
+  const name = repo.split('/')[1];
+  if (!repo || !node || !user || !name) {
+    showHelp();
+    return;
+  }
+  if (!node) node = name;
+  console.log(`work = ${workdir}`);
+  console.log(`repo = ${repo}`);
+  console.log(`node = ${node}`);
+  console.log(`user = ${user}`);
+  await makeDir(path.join(workdir, name));
+  await makeDir(path.join(workdir, name, 'lib'));
+  await makeDir(path.join(workdir, name, 'test'));
+  await copyFile(name, '.gitignore');
+  await copyFile(name, '.npmignore');
+  await copyFile(name, '.eslintrc.json');
+  await copyFile(name, '.eslintignore');
+  await copyFile(name, '.travis.yml');
+  await copyFile(name, 'ROADMAP.md');
+  await copyFile(name, 'CONTRIBUTING.md');
+  await copyFile(name, 'README.md', { name });
+  await copyFile(name, 'LICENSE', { time: (new Date()).getFullYear(), user });
+  await copyFile(name, 'package.json', { node, repo, user });
+  await copyFile(name, 'lib/index.js', { name });
+  await copyFile(name, 'test/index.js');
+  await tryShell(name, 'npm', ['install']);
+  await tryShell(name, 'git', ['init']);
+  await tryShell(name, 'git', ['add', '.']);
+}
+
+main().catch(error => {
+  console.error(error);
+});
