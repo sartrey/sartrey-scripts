@@ -1,0 +1,96 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+const util = require('util');
+const crypto = require('crypto');
+
+const algorithm = 'aes-192-cbc'; // 192 bits = 24 bytes
+const workdir = process.cwd();
+
+const readFile = util.promisify(fs.readFile);
+const writeFile = util.promisify(fs.writeFile);
+const randomBytes = util.promisify(crypto.randomBytes);
+const scrypt = util.promisify(crypto.scrypt);
+
+function parseOptions(args, keys) {
+  const options = {};
+  const regexps = keys.map(key => new RegExp(`^--${key}=?`));
+  args.forEach(arg => {
+    const index = regexps.findIndex(e => e.test(arg));
+    if (index >= 0) {
+      const value = arg.replace(regexps[index], '');
+      options[keys[index]] = value || 'true';
+    }
+  });
+  return options;
+}
+
+function getTimeSalt() {
+  const date = new Date();
+  return date.getFullYear().toString();
+}
+
+async function decipherFile(file, code) {
+  const sourceFile = file;
+  const sourceIV = sourceFile + '.iv';
+  const targetFile = sourceFile + '.decipher';
+  const key = await scrypt(code, getTimeSalt(), 24);
+  const iv = await readFile(sourceIV);
+  return new Promise((resolve, reject) => {
+    const cipher = crypto.createDecipheriv(algorithm, key, iv);
+    const input = fs.createReadStream(sourceFile);
+    const output = fs.createWriteStream(targetFile);
+    output.on('finish', resolve);
+    output.on('error', reject);
+    input.pipe(cipher).pipe(output);
+  });
+}
+
+async function encipherFile(file, code) {
+  const sourceFile = path.join(workdir, file);
+  const targetFile = sourceFile + '.encipher';
+  const key = await scrypt(code, getTimeSalt(), 24);
+  const iv = await randomBytes(16);
+  const targetIV = sourceFile + '.encipher.iv';
+  await writeFile(targetIV, iv);
+  return new Promise((resolve, reject) => {
+    const cipher = crypto.createCipheriv(algorithm, key, iv);
+    const input = fs.createReadStream(sourceFile);
+    const output = fs.createWriteStream(targetFile);
+    output.on('finish', resolve);
+    output.on('error', reject);
+    input.pipe(cipher).pipe(output);
+  });
+}
+
+function showHelp() {
+  console.log('cipher');
+  console.log(' --file = file to be dispose');
+  console.log(' --code = password');
+  console.log(' --mode = decipher / encipher(default)');
+}
+
+async function main() {
+  const options = parseOptions(process.argv, ['file', 'code', 'mode']);
+  const { file, code } = options;
+  const mode = options.mode !== 'decipher' ? 'encipher' : 'decipher';
+  if (!file || !code || !mode) {
+    showHelp();
+    return;
+  }
+  console.log(`file = ${file}`);
+  console.log(`code = ${code}`);
+  console.log(`mode = ${mode}`);
+  if (mode === 'encipher') {
+    await encipherFile(file, code);
+    console.log(`${file} enciphered as ${file}.encipher & ${file}.iv`)
+  } else {
+    await decipherFile(file, code);
+    console.log(`${file} deciphered as ${file}.decipher`)
+  }
+}
+
+main().catch(error => {
+  console.error(error);
+});
