@@ -31,8 +31,13 @@ function getTimeSalt() {
   return date.getFullYear().toString();
 }
 
+function joinSrcFile(file) {
+  if (file.startsWith('/')) return file;
+  return path.join(workdir, file);
+}
+
 async function decipherFile(file, code) {
-  const sourceFile = file;
+  const sourceFile = joinSrcFile(file);
   const sourceIV = sourceFile + '.iv';
   const targetFile = sourceFile + '.decipher';
   const key = await scrypt(code, getTimeSalt(), 24);
@@ -48,7 +53,7 @@ async function decipherFile(file, code) {
 }
 
 async function encipherFile(file, code) {
-  const sourceFile = path.join(workdir, file);
+  const sourceFile = joinSrcFile(file);
   const targetFile = sourceFile + '.encipher';
   const key = await scrypt(code, getTimeSalt(), 24);
   const iv = await randomBytes(16);
